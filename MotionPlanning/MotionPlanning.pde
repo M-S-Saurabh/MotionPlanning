@@ -1,64 +1,83 @@
 import queasycam.*;
 import java.util.Queue;
+import java.util.PriorityQueue;
 import java.util.Stack;
 import java.util.Collections;
 import java.util.LinkedList;
 
 QueasyCam cam;
 
-float planeT = 4.0, planeW = 200.0, planeH = 200.0;
+float planeT = 4.0, planeW = 400.0, planeH = 400.0;
 float centerX = 300.0, centerY = 100.0, centerZ = 0.0;
 color landColor = color(82, 115, 84);
 
-Agent agent;
-
-PVector obstaclePosition;
-float obstacleRadius = 20.0;
-color obstacleColor = color(165, 151, 129);
-
-PVector startPoint, endPoint;
-GraphNode startNode, endNode;
+ArrayList<Agent> agents;
+ArrayList<Obstacle> obstacles;
 
 ArrayList<Sphere> invalidPositions;
 ArrayList<PVector> milestones;
 ArrayList<GraphNode> roadmap;
-ArrayList<GraphNode> shortestPath;
-int currentNode = 0;
+boolean findPath = false;
 boolean displayNoPath = false;
-int nMilestones = 10;
+boolean drawMap = false;
+boolean isTTC = false;
+int nMilestones = 200;
+int minNeighbors = 5;
+boolean paused = false;
 
 void setup(){
   size(1000,1000,P3D);
   cam = new QueasyCam(this);
   cam.speed = 5; 
   cam.sensitivity = 0.5;
-  directionalLight(0,-1,-1,255,255,255);
-  
-  agent = new Agent(new PVector(-90.0, 0, -90.0));
-  obstaclePosition = new PVector(0,0,0);
-  startPoint = new PVector(-90,0,-90);
-  endPoint = new PVector(90,0,90);
+  lightSpecular(204,204,204);
+  directionalLight(255,255,255,0,-1,-1);
   randomSeed(1);
-  
-  invalidPositions = new ArrayList();
+  restart();
+  // move to R keypress when interaction is added
   constructCSpace();
   sampleConfigurations();
-  //constructDenseGraph();
   constructSparseGraph();
-  shortestPath = new ArrayList();
-  shortestPathBFS(startNode, endNode);
-  //shortestPathDFS(startNode, endNode);
   return;
 }
 
+void spawnAgents(int numAgents, float x, float z, float lx, float lz, PVector target){
+  int spawnCount = 0;
+  while(spawnCount < numAgents){
+    PVector start = new PVector(random(x+Agent.radius, x+lx), 0, random(z+Agent.radius, z+lz));
+    if(isTTC){
+      agents.add(new TTCAgent(start, target));
+    }else{
+      agents.add(new Agent(start, target));
+    }
+    spawnCount++;
+  }
+}
+
+void restart(){
+  findPath = false;
+  displayNoPath = false;
+  agents = new ArrayList();
+  spawnAgents(10, -200, -100, 50, 50, new PVector(90,0,90));
+  spawnAgents(10, -100, -200, 50, 50, new PVector(90,0,90));
+  
+  obstacles = new ArrayList();
+  obstacles.add(new Obstacle(new PVector(0,0,-10), 40));
+  obstacles.add(new Obstacle(new PVector(20,0,120), 40));
+  obstacles.add(new Obstacle(new PVector(120,0,20), 40));
+}
+
 void constructCSpace(){
-  invalidPositions.add(new Sphere(obstaclePosition, obstacleRadius+agent.radius));
+  invalidPositions = new ArrayList();
+  for(Obstacle obstacle : obstacles){
+    invalidPositions.add(new Sphere(obstacle.position, obstacle.radius+ Agent.radius));
+  }
 }
 
 void sampleConfigurations(){
   milestones = new ArrayList();
   while(milestones.size() < nMilestones){
-    PVector sample = new PVector(random(-100,100), 0, random(-100,100));
+    PVector sample = new PVector(random(-planeW/2+5, planeW/2-5), 0, random(-planeH/2+5,planeH/2-5));
     boolean invalid = false; 
     for(Sphere s : invalidPositions){
       invalid = invalid || s.isInvalid(sample);
@@ -66,41 +85,6 @@ void sampleConfigurations(){
     }
     if(!invalid){milestones.add(sample);}
   }
-}
-
-void constructDenseGraph(){
-  roadmap =  new ArrayList();
-  // Make nodes out for each milestone location.
-  for(PVector milestone : milestones){
-    GraphNode node = new GraphNode(milestone);
-    roadmap.add(node);
-  }
-  // Adding startPoint and endPoint
-  startNode = new GraphNode(startPoint);
-  roadmap.add(startNode);
-  endNode = new GraphNode(endPoint);
-  roadmap.add(endNode);
-  
-  // Make a fully connected graph.
-  for(GraphNode node : roadmap){
-    for(GraphNode neighbor : roadmap){
-      if(node == neighbor){continue;}
-      node.addNeighbor(neighbor);
-    }
-  }
-  // Prune the graph removing any edges that intersect with the obstacle.
-  for(int i=roadmap.size()-1; i>=0; i--){
-    GraphNode node = roadmap.get(i);
-    for(int j=node.neighbors.size()-1; j>=0; j--){
-      GraphNode neighbor = node.neighbors.get(j);
-      boolean isCollision = checkCollision(obstaclePosition, obstacleRadius, node.location, neighbor.location);
-      if(isCollision){
-        node.removeNeighbor(j);
-        neighbor.removeNeighbor(node);
-      }
-    }
-  }
-  //printRoadGraph(); //<>// //<>//
 }
 
 void printRoadGraph(){
@@ -124,10 +108,10 @@ void constructSparseGraph(){
     roadmap.add(node);
   }
   // Adding startPoint and endPoint
-  startNode = new GraphNode(startPoint);
-  roadmap.add(startNode);
-  endNode = new GraphNode(endPoint);
-  roadmap.add(endNode);
+  for(Agent agent : agents){
+    roadmap.add(agent.start);
+    roadmap.add(agent.goal);
+  }
   
   ArrayList<ArrayList<Pair>> distance = new ArrayList();
   for(int i=0; i<roadmap.size(); i++){
@@ -145,12 +129,13 @@ void constructSparseGraph(){
   }
   for(int i=0; i<roadmap.size(); i++){
     GraphNode node = roadmap.get(i);
-    for(int j=1; j<4; j++){
+    for(int j=1; j<minNeighbors; j++){
       Pair p = distance.get(i).get(j);
       GraphNode neighbor = roadmap.get(p.index);
       node.addNeighbor(neighbor);
     }
   }
+  //printRoadGraph();
 }
 
 boolean checkCollision(PVector center, float radius, PVector start, PVector end){
@@ -166,56 +151,61 @@ boolean checkCollision(PVector center, float radius, PVector start, PVector end)
   return abs(distToStart + distToEnd - lineMag) < 0.001;
 }
 
-void shortestPathBFS(GraphNode start, GraphNode end){
+ArrayList<GraphNode> shortestPathBFS(GraphNode start, GraphNode end){
   Queue<ArrayList<GraphNode>> bfsPathQueue = new LinkedList();
-  
   ArrayList<GraphNode> startPath = new ArrayList();
   startPath.add(start);
   bfsPathQueue.add(startPath);
+  //print("Added "); printList(startPath);
   
   while(!bfsPathQueue.isEmpty()){
     ArrayList<GraphNode> path = bfsPathQueue.remove();
-    GraphNode lastNode = path.get(path.size()-1); //<>//
+    //print("Popped "); printList(path);
+    GraphNode lastNode = path.get(path.size()-1);
     if(lastNode == end){
-      shortestPath = path; 
-      return;
+      //println("returned"+start.location+" "+end.location);
+      return path;
     }
     for(GraphNode neighbor : lastNode.neighbors){
       if(neighbor.visited){continue;}
       ArrayList<GraphNode> newPath = (ArrayList) path.clone();
       newPath.add(neighbor);
       bfsPathQueue.add(newPath);
+       //print("Added "); printList(newPath);
     }
     lastNode.setVisited();
   }
-  shortestPath = new ArrayList();
-  return;
-} //<>//
+  displayNoPath = true;
+  return new ArrayList();
+}
 
-void shortestPathDFS(GraphNode start, GraphNode end){
-  Stack<ArrayList<GraphNode>> dfsPathStack = new Stack();
-  
+ArrayList<GraphNode> searchPathUCS(GraphNode start, GraphNode end){
+  PriorityQueue<Path> ucsPathQueue = new PriorityQueue();
   ArrayList<GraphNode> startPath = new ArrayList();
   startPath.add(start);
-  dfsPathStack.add(startPath);
+  ucsPathQueue.add(new Path(startPath, 0));
+  //print("Added "); printList(startPath); print("\n");
   
-  while(!dfsPathStack.isEmpty()){
-    ArrayList<GraphNode> path = dfsPathStack.pop();
-    GraphNode lastNode = path.get(path.size()-1);
+  while(!ucsPathQueue.isEmpty()){
+    Path path = ucsPathQueue.remove();
+    //print("Popped "); printList(path.list); print(":"+path.cost+"\n");
+    GraphNode lastNode = path.getLastNode();
     if(lastNode == end){
-      shortestPath = path; 
-      return;
+      //println("returned"+start.location+" "+end.location);
+      return path.list;
     }
     for(GraphNode neighbor : lastNode.neighbors){
       if(neighbor.visited){continue;}
-      ArrayList<GraphNode> newPath = (ArrayList) path.clone();
+      ArrayList<GraphNode> newPath = (ArrayList) path.list.clone();
       newPath.add(neighbor);
-      dfsPathStack.push(newPath);
+      float newCost = path.cost+lastNode.location.dist(neighbor.location);
+      ucsPathQueue.add( new Path(newPath, newCost));
+      //print("Added "); printList(newPath); print(":"+newCost+"\n");
     }
     lastNode.setVisited();
   }
-  shortestPath = new ArrayList(); //<>//
-  return;
+  displayNoPath = true;
+  return new ArrayList();
 }
 
 void printList(ArrayList<GraphNode> path){
@@ -245,36 +235,34 @@ void drawLand(){
 
 void drawEndpoint(PVector point, float h){
   pushMatrix();
-  fill(0, 114, 233);
-  stroke(0, 114, 233);
-  translate(centerX+point.x, centerY+point.y-(h/2)-10, centerZ+point.z);
-  box(5,h,5);
+  fill(77, 219, 255);
+  stroke(77, 219, 255);//127,255,0); //0, 114, 233
+  translate(centerX+point.x, centerY+point.y-0.1, centerZ+point.z);
+  rotateX(PI/2);
+  rect(-4,-4,8,8);
   popMatrix();
 }
 
-void drawObstacle(){
-  pushMatrix();
-  fill(obstacleColor);
-  stroke(obstacleColor);
-  translate(centerX+obstaclePosition.x, centerY+obstaclePosition.y, centerZ+obstaclePosition.z);
-  sphere(obstacleRadius);
-  popMatrix();
+void drawObstacles(){
+  if(obstacles == null || obstacles.size() <= 0){return;}
+  for(Obstacle obstacle : obstacles){
+    obstacle.draw(centerX, centerY, centerZ);
+  }
 }
 
-void drawAgent(){
-  pushMatrix();
-  fill(agent.colour);
-  stroke(agent.colour);
-  translate(centerX+agent.position.x, centerY+agent.position.y-5, centerZ+agent.position.z);
-  sphere(agent.radius);
-  popMatrix();
+void drawAgents(){
+  if(agents == null || agents.size() <= 0){return;}
+  for(Agent agent: agents){
+    agent.draw(centerX, centerY, centerZ);
+  }
 }
 
 void drawNode(GraphNode node){
   pushMatrix();
-  translate(centerX+node.location.x, centerY+node.location.y, centerZ+node.location.z);
-  sphere(3);
-  translate(3,-10,3);
+  translate(centerX+node.location.x, centerY+node.location.y-0.1, centerZ+node.location.z);
+  rotateX(PI/2);
+  ellipse(0,0,3,3);
+  //translate(3,-10,3);
   //rotateY(-PI/2);
   //text("P:"+node.id,0,0);
   //text("p:"+node.location.x+":"+node.location.z, 0, 0);
@@ -282,6 +270,8 @@ void drawNode(GraphNode node){
 }
 
 void drawRoadmap(){
+  if(!drawMap){return;}
+  if(roadmap == null || roadmap.size() <= 0){return;}
   color yellow = color(244, 208, 63);
   fill(yellow);
   stroke(yellow);
@@ -295,17 +285,15 @@ void drawRoadmap(){
     strokeWeight(1);
   }
 }
- //<>//
+
 void update(float dt){
-  if(shortestPath.isEmpty()){
-    displayNoPath = true;
+  if(displayNoPath){
     return;
-  }else{
-    displayNoPath = false;
   }
-  
-  if(currentNode < shortestPath.size()-1){
-    agent.move(shortestPath.get(currentNode), shortestPath.get(currentNode+1), dt);
+  if(!paused){
+    for(Agent agent : agents){
+      agent.move(dt, agents, obstacles);
+    }
   }
 }
 
@@ -321,14 +309,66 @@ void draw(){
   background(0);
   //drawOrigin();
   drawLand();
-  drawEndpoint(startPoint, 10); // start point
-  drawEndpoint(endPoint, 10); // stop point
-  drawObstacle(); // Obstacle
-  drawAgent(); // Agent
+  for(Agent agent: agents){
+    drawEndpoint(agent.start.location, 10); // start point
+    drawEndpoint(agent.goal.location, 10); // stop point
+  }
+  drawObstacles(); // Obstacle
+  drawAgents(); // Agent
   drawRoadmap();
   
   if(displayNoPath){ drawNoPathText(); }
   
   // Update Physics
-  update(0.1);
+  for(int i=0; i<3; i++){
+    update(0.04);
+  }
+}
+
+void resetGraphVisited(){
+  for(GraphNode node : roadmap){
+    node.resetVisited();
+  }
+}
+
+void findPaths(){
+  displayNoPath = false;
+  for(Agent agent : agents){
+    resetGraphVisited();
+    //agent.setPath(shortestPathBFS(agent.start, agent.goal));
+    agent.setPath(searchPathUCS(agent.start, agent.goal));
+  }
+}
+
+void keyPressed(){
+  if(key == 'r'){
+    if(findPath){
+      for(Agent agent : agents){
+        agent.setPath(new ArrayList());
+      }
+    }else{
+      //constructCSpace();
+      //sampleConfigurations();
+      //constructSparseGraph();
+      findPaths();
+    }
+    findPath = !findPath;
+  }
+  
+  if(key == '0'){
+    isTTC = false;
+    restart();
+    constructSparseGraph();
+  }
+  if(key == '9'){
+    isTTC = true;
+    restart();
+    constructSparseGraph();
+  }
+  if(key == 'm'){
+    drawMap = !drawMap;
+  }
+  if(key == 'p'){
+    paused = !paused;
+  }
 }

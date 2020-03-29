@@ -1,5 +1,6 @@
 import processing.core.PVector;
 import java.util.ArrayList;
+import java.util.Comparator;
 
 class GraphNode{
   private static int idInc = 0;
@@ -14,8 +15,15 @@ class GraphNode{
     this.id = idInc++;
   }
   
+  
+  
   void addNeighbor(GraphNode neighbor){
-    this.neighbors.add(neighbor);
+    if(this.neighbors.indexOf(neighbor) < 0){
+      this.neighbors.add(neighbor);
+    }
+    if(neighbor.neighbors.indexOf(this) < 0){
+      neighbor.neighbors.add(this);
+    }
   }
   
   void removeNeighbor(GraphNode neighbor){
@@ -26,5 +34,8 @@ class GraphNode{
   }
   void setVisited(){
     this.visited = true;
+  }
+  void resetVisited(){
+    this.visited = false;
   }
 }
