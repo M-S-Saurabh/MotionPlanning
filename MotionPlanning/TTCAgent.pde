@@ -1,12 +1,14 @@
 class TTCAgent extends Agent{
   float K_goal = 20;
   float K_bounce = 20;
-  float K_avoid = 20;
+  float K_avoid = 30;
+  float K_avoid_obs = 4;
   float foresight = 100;
   float maxForce = 100; 
+  float INFLUENCE_RADIUS = 10.0;
   
-  TTCAgent(PVector position, PVector goal){
-    super(position, goal);
+  TTCAgent(PVector position, PVector goal, ArrayList<PShape> shapes, PImage texture){
+    super(position, goal, shapes, texture);
   }
   
   @Override
@@ -19,7 +21,6 @@ class TTCAgent extends Agent{
     PVector F_avoidance = new PVector(0,0,0);
     for(Agent agent : agents){
       if(agent.position.dist(position) == 0){continue;}
-      float ttc = getTimeToCollision(agent);
       float r = radius;
       float dist = PVector.sub(agent.position, this.position).mag();
       if(dist < 2*r){ r = dist/2.001;}
@@ -28,32 +29,22 @@ class TTCAgent extends Agent{
       PVector avoidanceF = PVector.mult(dEdx,-1);
       avoidanceF.limit(maxForce);
       F_avoidance.add(avoidanceF);
-      
-      //println("ttc is "+ttc);
-      //if(ttc > foresight){continue;}
-      //if(ttc == 0){
-      //  PVector non_anticipatory = PVector.sub(position, agent.position);
-      //  non_anticipatory.setMag(K_bounce);
-      //  F_avoidance.add(non_anticipatory);
-      //  continue;
-      //}
-      //// Avoidance force direction.
-      //PVector futurePosition = position.copy();
-      //futurePosition.add(PVector.mult(velocity, ttc));
-      //PVector agentFuturePosition = agent.position.copy();
-      //agentFuturePosition.add(PVector.mult(agent.velocity, ttc));
-      //PVector avoidanceForce = PVector.sub(futurePosition, agentFuturePosition);
-      //// Avoidance force magnitude
-      //avoidanceForce.setMag( (foresight - ttc)/ttc );
-      //F_avoidance.add(avoidanceForce);
     }
-    //F_avoidance.limit(maxForce);
+    PVector F_obstacle = new PVector(0,0,0); 
+    for(Obstacle obstacle: obstacles){
+      float separation = obstacle.position.dist(this.position)-obstacle.radius;
+      if(separation < INFLUENCE_RADIUS){
+        F_obstacle.add(PVector.sub(this.position, obstacle.position).mult(2000/sq(separation)));
+      }
+    }
     
     this.acceleration.mult(0);
     this.acceleration.add(PVector.mult(F_goal, 1.0/mass));
     //println("Goal force:"+PVector.mult(F_goal, 1.0/mass).mag());
     this.acceleration.add(PVector.mult(F_avoidance, 1.0/mass));
     //println("Avoidance force:"+PVector.mult(F_avoidance, 1.0/mass).mag());
+    this.acceleration.add(PVector.mult(F_obstacle, 1.0/mass));
+    //println("Obstacle force:"+PVector.mult(F_obstacle, 1.0/mass).mag());
     println();
   }
   
@@ -94,7 +85,7 @@ class TTCAgent extends Agent{
     float b = w.dot(v);  
     float c = w.dot(w) - radius*radius;
     float discr = b*b - a*c;
-    if((discr < 0) || (a<0.001 && a > - 0.001)){
+    if((discr <= 0) || (a<0.001 && a > - 0.001)){
       return new PVector(0,0,0);
     }
     discr = sqrt(discr);

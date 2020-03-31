@@ -15,8 +15,6 @@ class GraphNode{
     this.id = idInc++;
   }
   
-  
-  
   void addNeighbor(GraphNode neighbor){
     if(this.neighbors.indexOf(neighbor) < 0){
       this.neighbors.add(neighbor);

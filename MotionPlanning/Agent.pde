@@ -4,27 +4,38 @@ class Agent{
   PVector targetVel;
   PVector acceleration;
   GraphNode start, goal;
+  ArrayList<PShape> shapes;
+  PImage texture;
+  int shapeIter = 0;
   float mass = 1;
   static final float radius = 5.0f;
-  static final float INFLUENCE_RADIUS = 20.0;
+  float INFLUENCE_RADIUS = 20.0;
   color colour = color(220, 71, 48);
   ArrayList<GraphNode> path;
   int currentNode = 0;
+  float K_goal = 20;
   
-  Agent(PVector position, PVector goal){
+  Agent(PVector position, PVector goal, ArrayList<PShape> shapes, PImage texture){
     this.position = position;
     this.velocity = new PVector();
     this.acceleration = new PVector();
     this.start = new GraphNode(position);
     this.goal = new GraphNode(goal);
     this.path = new ArrayList();
+    this.shapes = (ArrayList<PShape>) shapes.clone();
+    this.texture = texture;
   }
   
   void computeForces(PVector target, ArrayList<Agent> agents, ArrayList<Obstacle> obstacles){
-    target.y = this.position.y;
-    PVector targetVelocity = PVector.sub(target, this.position).normalize().mult(10);
-    this.targetVel = targetVelocity.copy();
-    this.velocity = targetVelocity.copy();
+    //target.y = this.position.y;
+    //PVector targetVelocity = PVector.sub(target, this.position).normalize().mult(10);
+    //this.targetVel = targetVelocity.copy();
+    //this.velocity = targetVelocity.copy();
+    PVector goalVelocity = PVector.sub(target, position);
+    goalVelocity.setMag(10);
+    PVector F_goal = PVector.sub(goalVelocity, velocity);
+    F_goal.mult(K_goal);
+    
     PVector boidForce = new PVector(0,0,0); 
     PVector centroid = new PVector(0,0,0); int nbrCount = 0;
     for(Agent agent: agents){
@@ -50,6 +61,7 @@ class Agent{
       }
     }
     PVector totalForce = PVector.add(obstacleForce, boidForce);
+    totalForce.add(F_goal);
     this.acceleration = PVector.mult(totalForce, 1/mass);
   }
   
@@ -81,22 +93,32 @@ class Agent{
   }
   
   int lookAhead(ArrayList<Obstacle> obstacles){
-    for(int i=currentNode; i<path.size(); i++){
+    for(int i=path.size()-1; i >= 0; i--){
       PVector target = path.get(i).location;
-      for(Obstacle obstacle: obstacles){
-        if(lineCircleIntersect(this.position, target, obstacle.position, obstacle.radius+radius)){
-          return i-1;
-        }
+      boolean noObstacles = true;
+      for(Obstacle obstacle: obstacles){ //<>//
+        //float centerX = 300.0, centerY = 100.0, centerZ = 0.0;
+        //strokeWeight(2); stroke(0,0,255);
+        //line(centerX+position.x, centerY+position.y-5, centerZ+position.z, centerX+target.x, centerY+target.y-5, centerZ+target.z);
+        boolean obstacleHit = lineCircleIntersect(this.position, target, obstacle.position, obstacle.radius+radius);
+        if(obstacleHit){noObstacles = false; break;} //<>//
       }
+      if(noObstacles){ return i;} //<>//
     }
-    return path.size()-1;
+    return -1;
   }
   
   
   void move(float dt, ArrayList<Agent> agents, ArrayList<Obstacle> obstacles){
     if(currentNode <= path.size()-1){
+      //println("currentNode:"+currentNode);
+      int tempCurrentNode = currentNode;
       if(currentNode < path.size()-1){
         currentNode = lookAhead(obstacles);
+        if(currentNode == -1){
+          // re-compute path.
+          println("here"); //<>//
+        }
       }
       PVector target = path.get(currentNode).location;
       if(position.dist(target) < (radius+0.1)){
@@ -115,7 +137,31 @@ class Agent{
   
   void draw(float centerX, float centerY, float centerZ){
     //drawTriangles(centerX, centerY, centerZ);
-    drawSpheres(centerX, centerY, centerZ);
+    //drawSpheres(centerX, centerY, centerZ);
+    drawShapes(centerX, centerY, centerZ);
+  }
+  
+  void drawShapes(float centerX, float centerY, float centerZ){
+    pushMatrix();
+    PVector center = new PVector(centerX+position.x, centerY+position.y, centerZ+position.z);
+    translate(center.x, center.y, center.z);
+    if(shapeIter > shapes.size()-1){shapeIter =  shapeIter % shapes.size();}
+    PShape object = shapes.get(shapeIter);
+    rotateZ(PI);
+    if(velocity.z > 0){
+      float theta = atan2(velocity.x, velocity.z);
+      rotateY(-theta);
+    }
+    noStroke();
+    scale(2);
+    //object.setFill(color(129,123,105,255));
+    specular(129,123,105);
+    shininess(10);
+    if(texture != null){
+      texture(texture);
+    }
+    shape(object);
+    popMatrix();
   }
   
   void drawSpheres(float centerX, float centerY, float centerZ){
@@ -128,7 +174,6 @@ class Agent{
     sphere(3);
     strokeWeight(2);
     line(0,0,0, velocity.x, velocity.y, velocity.z);
-    endShape();
     popMatrix();
   }
   

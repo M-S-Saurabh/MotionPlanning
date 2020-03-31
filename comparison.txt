@@ -1,0 +1,5 @@
+PRM with uniform cost search (ms): 352, 430, 653, 204, 527
+mean: 433.2
+
+RRT (ms): 5, 1, 1, 1, 1
+mean: 1.8
