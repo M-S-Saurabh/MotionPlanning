@@ -1,3 +1,5 @@
+int nMilestones = 200;
+int minNeighbors = 5;
 
 void constructCSpace(){
   invalidPositions = new ArrayList();
@@ -61,24 +63,45 @@ void constructSparseGraph(){
   }
   for(int i=0; i<roadmap.size(); i++){
     GraphNode node = roadmap.get(i);
-    for(int j=1; j<minNeighbors; j++){
+    int edgeCount = 0;
+    for(int j=1; j<roadmap.size(); j++){
       Pair p = distance.get(i).get(j);
       GraphNode neighbor = roadmap.get(p.index);
-      node.addNeighbor(neighbor);
+      boolean addEdge = true;
+      for(Obstacle obstacle : obstacles){
+        if( lineCircleIntersect(node.location, neighbor.location, obstacle.position, obstacle.radius) ){
+          addEdge = false;
+          break;
+        }
+      }
+      if(addEdge){
+        node.addNeighbor(neighbor);
+        edgeCount++;
+      }
+      if(edgeCount >= minNeighbors){ break;}
     }
   }
   //printRoadGraph();
 }
 
-boolean checkCollision(PVector center, float radius, PVector start, PVector end){
-  PVector line = PVector.sub(end, start).normalize();
-  PVector centerToStart = PVector.sub(start, center);
-  PVector perpendicular = PVector.sub(centerToStart, PVector.mult(line, centerToStart.dot(line)));
-  float perpendicularLength = perpendicular.mag();
-  if(perpendicularLength >= radius){return false;}
-  PVector perpendicularBase = PVector.add(perpendicular, center);
-  float distToStart = perpendicularBase.dist(start);
-  float distToEnd = perpendicularBase.dist(end);
-  float lineMag = start.dist(end);
-  return abs(distToStart + distToEnd - lineMag) < 0.001;
+// Taken from CCD code posted by Dr.Guy on canvas.
+boolean lineCircleIntersect(PVector start, PVector end, PVector center, float radius){
+  PVector toEnd = PVector.sub(end, start);
+  float lineSegmentLength = toEnd.mag();
+  toEnd.normalize(); // V
+  PVector toCenter = PVector.sub(center, start); // W
+  
+  float a = 1; // ||V||^2 :since V is normalized
+  float b = -2 * toEnd.dot(toCenter); // 2 * (P0-C) 
+  float c = toCenter.magSq() - sq(radius); // ||P0-C||^2 - r^2
+  float D = sq(b) - 4*a*c;
+  
+  boolean colliding = false;
+  if(D>=0){
+    float t = (-b - sqrt(D))/(2*a);
+    if (t > 0 && t < lineSegmentLength){
+      colliding = true;
+    }
+  }
+  return colliding;
 }

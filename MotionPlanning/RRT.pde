@@ -1,7 +1,7 @@
 int NUM_SAMPLES = 1000;
 
-ArrayList<GraphNode> findRRT(GraphNode from, GraphNode to, boolean saveTree){
-  TreeNode start = new TreeNode(from);
+ArrayList<GraphNode> findRRT(PVector from, GraphNode to, boolean saveTree){
+  TreeNode start = new TreeNode(from, null);
   ArrayList<TreeNode> tree = new ArrayList();
   tree.add(start);
   int nSample = 0;
@@ -14,7 +14,7 @@ ArrayList<GraphNode> findRRT(GraphNode from, GraphNode to, boolean saveTree){
       sample = new PVector(random(-planeH/2, planeH/2), 0, random(-planeW/2, planeW/2));
     }
     TreeNode parent = findClosest(sample, tree);
-    TreeNode newNode = addToTree(parent, sample, obstacles);
+    TreeNode newNode = addToTree(parent, sample, obstacles, Agent.radius);
     tree.add(newNode);
     if(newNode.location.dist(to.location) == 0){
       if(saveTree){globalTree = tree;}
@@ -24,6 +24,34 @@ ArrayList<GraphNode> findRRT(GraphNode from, GraphNode to, boolean saveTree){
   }
   if(saveTree){globalTree = tree;}
   return new ArrayList();
+}
+
+ArrayList<GraphNode> findRRT3D(PVector from, GraphNode to, boolean saveTree){
+  TreeNode start = new TreeNode(from, null);
+  ArrayList<TreeNode> tree = new ArrayList();
+  tree.add(start);
+  int nSample = 0;
+  TreeNode closest = null;
+  while(nSample < NUM_SAMPLES){
+    PVector sample = null;
+    if(nSample % 20 == 0){
+      // Periodically select target location.
+      sample = to.location.copy();
+    }else{
+      sample = new PVector(random(-planeH/2, planeH/2), random(-worldH, 0), random(-planeW/2, planeW/2));
+    }
+    TreeNode parent = findClosest(sample, tree);
+    TreeNode newNode = addToTree(parent, sample, obstacles, Bird.radius);
+    tree.add(newNode);
+    if(newNode.location.dist(to.location) == 0){
+      if(saveTree){globalTree = tree;}
+      return getPath(newNode);
+    }
+    if(nSample % 20 == 0){closest = newNode;}
+    nSample++;
+  }
+  if(saveTree){globalTree = tree;}
+  return getPath(closest);
 }
 
 ArrayList<GraphNode> getPath(TreeNode node){
@@ -49,10 +77,10 @@ TreeNode findClosest(PVector sample, ArrayList<TreeNode> tree){
   return result;
 }
 
-TreeNode addToTree(TreeNode parent, PVector newLocation, ArrayList<Obstacle> obstacles){
+TreeNode addToTree(TreeNode parent, PVector newLocation, ArrayList<Obstacle> obstacles, float excludeRadius){
   PVector tempLocation = newLocation.copy();
   for(Obstacle obstacle : obstacles){
-    PVector closest = closestCollision(parent.location, tempLocation, obstacle.position, obstacle.radius);
+    PVector closest = closestCollision(parent.location, tempLocation, obstacle.position, obstacle.radius+ excludeRadius);
     if(closest == null){ continue;}
     tempLocation = closest.copy();
   }

@@ -1,4 +1,37 @@
 
+ArrayList<GraphNode> searchPathAStar(GraphNode start, GraphNode end){
+  PriorityQueue<Path> aStarPathQueue = new PriorityQueue();
+  ArrayList<GraphNode> startPath = new ArrayList();
+  startPath.add(start);
+  aStarPathQueue.add(new Path(startPath, aStarHeuristic(start, end)));
+  //print("Added "); printList(startPath); print("\n");
+  
+  while(!aStarPathQueue.isEmpty()){
+    Path path = aStarPathQueue.remove();
+    //print("Popped "); printList(path.list); print(":"+path.cost+"\n");
+    GraphNode lastNode = path.getLastNode();
+    if(lastNode == end){
+      //println("returned"+start.location+" "+end.location);
+      return path.list;
+    }
+    for(GraphNode neighbor : lastNode.neighbors){
+      if(neighbor.visited){continue;}
+      ArrayList<GraphNode> newPath = (ArrayList) path.list.clone();
+      newPath.add(neighbor);
+      float newCost = path.cost + lastNode.location.dist(neighbor.location) + aStarHeuristic(neighbor, end);
+      aStarPathQueue.add( new Path(newPath, newCost));
+      //print("Added "); printList(newPath); print(":"+newCost+"\n");
+    }
+    lastNode.setVisited();
+  }
+  displayNoPath = true;
+  return new ArrayList();
+}
+
+float aStarHeuristic(GraphNode node, GraphNode goal){
+  return (node.location.dist(goal.location));
+}
+
 ArrayList<GraphNode> searchPathUCS(GraphNode start, GraphNode end){
   PriorityQueue<Path> ucsPathQueue = new PriorityQueue();
   ArrayList<GraphNode> startPath = new ArrayList();
@@ -28,7 +61,7 @@ ArrayList<GraphNode> searchPathUCS(GraphNode start, GraphNode end){
   return new ArrayList();
 }
 
-ArrayList<GraphNode> shortestPathBFS(GraphNode start, GraphNode end){
+ArrayList<GraphNode> searchPathBFS(GraphNode start, GraphNode end){
   Queue<ArrayList<GraphNode>> bfsPathQueue = new LinkedList();
   ArrayList<GraphNode> startPath = new ArrayList();
   startPath.add(start);

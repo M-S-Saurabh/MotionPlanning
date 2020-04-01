@@ -3,12 +3,12 @@ class TTCAgent extends Agent{
   float K_bounce = 20;
   float K_avoid = 30;
   float K_avoid_obs = 4;
-  float foresight = 100;
+  float foresight = 50;
   float maxForce = 100; 
   float INFLUENCE_RADIUS = 10.0;
   
-  TTCAgent(PVector position, PVector goal, ArrayList<PShape> shapes, PImage texture){
-    super(position, goal, shapes, texture);
+  TTCAgent(PVector position, PVector goal, ArrayList<PShape> shapes, PImage texture, color colour){
+    super(position, goal, shapes, texture, colour);
   }
   
   @Override
